@@ -1,0 +1,77 @@
+# Carregar pacotes necessários / Load required packages
+library(tidyverse)  # Conjunto de pacotes para manipulação de dados / Data manipulation suite
+library(gganimate)  # Biblioteca para criar animações em ggplot / Animation library for ggplot
+library(ggtext)     # Melhor formatação de textos nos gráficos / Improved text formatting for plots
+library(lubridate)  # Manipulação de datas / Date manipulation
+
+# Ler os dados / Load the data
+# Substitua o caminho abaixo pelo arquivo exportado ou copie diretamente os dados do dataframe criado
+# Replace the path below with your exported file or directly load data from the created dataframe
+df <- read.csv("sample_data.csv")
+
+# TRATAMENTO DOS DADOS / DATA CLEANING ####
+
+# Converter colunas para tipos apropriados / Convert columns to appropriate types
+df$Categoria <- as.factor(df$Categoria)
+
+# Formatar os meses para exibição no formato "Fevereiro 2024" / Format months for display as "February 2024"
+df$MesOriginal <- df$Mês  # Preservar os valores originais, ex.: "2024-01" / Preserve original values, e.g., "2024-01"
+df$Mês <- format(ymd(paste0(df$Mês, "-01")), "%B %Y")
+
+# Capitalizar o primeiro caractere de cada mês / Capitalize the first character of each month
+df$Mês <- gsub("^(\\w)", "\\U\\1", df$Mês, perl = TRUE)
+
+# Ordenar os meses cronologicamente usando a coluna original / Sort months chronologically using the original column
+df$Mês <- factor(df$Mês, levels = unique(df$Mês[order(df$MesOriginal)]))
+
+# CRIAÇÃO DO GRÁFICO ANIMADO / ANIMATED PLOT CREATION ####
+grafico <- ggplot(df, aes(x = Categoria, y = CPV, fill = Categoria)) +
+  geom_violin(alpha = 0.6, color = "black", trim = FALSE) +  # Cria uma representação de distribuição dos dados / Creates a distribution representation of the data
+  geom_jitter(aes(color = Categoria), size = 3, alpha = 0.7, width = 0.2, show.legend = FALSE) +  # Adiciona pontos jitter para mostrar variação / Adds jitter points to show variation
+  stat_summary(fun = mean, geom = "point", shape = 20, size = 10, color = "red", show.legend = FALSE) +  # Representação da média / Representation of the mean
+  geom_hline(yintercept = 100, linetype = "dashed", color = "blue", linewidth = 0.8) +  # Linha de referência horizontal / Horizontal reference line
+  # Adiciona rótulos dos valores máximo e mínimo com fundo branco / Adds labels for max and min values with white background
+  stat_summary(fun.data = function(y) {
+    data.frame(y = max(y), label = paste0("$", formatC(max(y), format = "f", digits = 2)))
+  }, geom = "label", vjust = -0.5, size = 5, color = "black", fill = "white", label.padding = unit(0.15, "lines")) +
+  stat_summary(fun.data = function(y) {
+    data.frame(y = min(y), label = paste0("$", formatC(min(y), format = "f", digits = 2)))
+  }, geom = "label", vjust = 1.5, size = 5, color = "black", fill = "white", label.padding = unit(0.15, "lines")) +
+  labs(
+    title = "**{closest_state}**",  # Título dinâmico que muda com cada estado da animação / Dynamic title that changes with each animation state
+    subtitle = "Custo por Conversão Mensal",  # Subtítulo do gráfico / Plot subtitle
+    x = NULL,  # Remove título do eixo X / Remove X-axis title
+    y = NULL,  # Remove título do eixo Y / Remove Y-axis title
+    caption = "Fonte: Dados simulados",  # Fonte dos dados / Data source
+    fill = "Categorias"  # Título da legenda / Legend title
+  ) +
+  scale_fill_brewer(palette = "Set2") +  # Paleta de cores para preencher as categorias / Color palette for categories
+  scale_y_continuous(labels = scales::dollar_format(prefix = "$", big.mark = ",")) +  # Formato do eixo Y em dólares / Y-axis format in dollars
+  theme_minimal(base_size = 14) +  # Tema minimalista / Minimal theme
+  theme(
+    plot.title = element_markdown(hjust = 0.5, size = 22, face = "bold"),  # Centraliza e formata o título / Center and format title
+    plot.subtitle = element_text(hjust = 0.5, size = 18, face = "italic"),  # Centraliza e formata o subtítulo / Center and format subtitle
+    plot.caption = element_text(size = 10, hjust = 1),
+    axis.text.x = element_blank(),  # Remove rótulos do eixo X / Remove X-axis labels
+    axis.ticks.x = element_blank(),  # Remove marcadores do eixo X / Remove X-axis ticks
+    axis.text.y = element_text(size = 17),  # Aumenta o texto do eixo Y / Increase Y-axis text size
+    legend.position = "top",  # Coloca a legenda no topo / Place legend on top
+    legend.title = element_text(size = 16, face = "bold"),  # Formata o título da legenda / Format legend title
+    legend.text = element_text(size = 14)  # Formata o texto da legenda / Format legend text
+  ) +
+  transition_states(
+    states = Mês,
+    transition_length = 2,
+    state_length = 1
+  ) +
+  ease_aes('cubic-in-out')
+
+# Renderizar e salvar o GIF / Render and save the GIF
+anim <- animate(
+  grafico,
+  nframes = 150,  # Número de quadros na animação / Number of frames in animation
+  fps = 12,       # Quadros por segundo / Frames per second
+  width = 1200,   # Largura do GIF / GIF width
+  height = 627,   # Altura do GIF / GIF height
+  renderer = gifski_renderer("grafico_animado_CPV_violin_rotulos_fundo_branco.gif")  # Salvar como GIF / Save as GIF
+)
